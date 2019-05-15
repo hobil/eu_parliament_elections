@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Party Overview</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../static/style.css" type="text/css">
+    <style>
+      .container {
+        max-width: 2000px;
+      }
+    </style>
+  </head>
+  <body>
+    {% block content %}
+    <div class="container" margin:0 auto;>
+      {% for message in get_flashed_messages() %}
+      <div class="alert alert-warning">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        {{ message }}
+      </div>
+      {% endfor %}
+      <span>
+      <div class="row">
+              <div class="chart" id="scatter">
+                  <script>
+                      var graphs = {{plot | safe}};
+                      Plotly.plot('scatter',graphs,{});
+                  </script>
+              </div>
+      </div>
+    </span>
+    <span>
+      <div class="row" display:inline-block;>
+        <h3>Paste source of the webpage containing your Wahl-O-Mat results.</h3>
+        <span>
+        <form method="post" action="{{ url_for('show') }}">
+          <label for="view_source"></label>
+          <br/>
+          <textarea placeholder="Paste html source code." name="view_source" cols="80" rows="3" id ="view_source">{{ text }}</textarea/>
+          <br/>
+          <button type="submit" class="btn btn-default">Submit</button>
+        </form>
+      </span>
+      </div>
+    </span>
+    </div>
+    {% endblock %}
+    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/jquery-1.11.1.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/plots.js') }}"></script>
+  </body>
+</html>

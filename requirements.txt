@@ -1,0 +1,12 @@
+gunicorn
+flask
+numpy==1.16.3
+pandas==0.24.2
+scikit-learn==0.20.3
+plotly==3.9.0
+dash==0.42.0
+dash-core-components==0.47.0
+dash-html-components==0.16.0
+requests==2.21.0
+beautifulsoup4==4.6.0
+

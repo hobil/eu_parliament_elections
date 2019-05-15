@@ -53,6 +53,8 @@ def show():
     return render_template('index.html', plot=graphJSON)
 
 if __name__ == '__main__':
+	print("alive")
+	logging.info("alive")
     data = pd.read_csv('res/data.csv')
     pca = PCA(2)
     data_2d = pca.fit_transform(data.T)

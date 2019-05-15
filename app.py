@@ -52,7 +52,6 @@ def show():
     return render_template('index.html', plot=graphJSON)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
     print("alive")
     logging.info("alive")
     data = pd.read_csv('res/data.csv')
@@ -61,3 +60,4 @@ if __name__ == '__main__':
     fig = show_parties(data_2d, data)
     logging.info(data_2d.shape)
     logging.info(pca.components_.shape)
+    app.run(host='0.0.0.0')

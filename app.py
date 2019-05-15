@@ -15,7 +15,7 @@ import logging
 logging.getLogger().setLevel('INFO')
 
 app = Flask(__name__)
-#app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa7'
+app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa7'
 
 data = pd.read_csv('res/data.csv')
 pca = PCA(2)

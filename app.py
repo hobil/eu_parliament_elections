@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request, flash, redirect, url_for
+from flask import Flask, render_template, request, flash, redirect, url_for
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -15,9 +15,6 @@ import logging
 logging.getLogger().setLevel('INFO')
 
 app = Flask(__name__)
-app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa6'
-
-server = app.server
 
 @app.route('/')
 def form():
@@ -55,8 +52,8 @@ def show():
     return render_template('index.html', plot=graphJSON)
 
 if __name__ == '__main__':
+    app.run(host='0.0.0.0')
     print("alive")
-    app.run(debug=True)
     logging.info("alive")
     data = pd.read_csv('res/data.csv')
     pca = PCA(2)
@@ -64,4 +61,3 @@ if __name__ == '__main__':
     fig = show_parties(data_2d, data)
     logging.info(data_2d.shape)
     logging.info(pca.components_.shape)
-    #app.run(host='0.0.0.0')

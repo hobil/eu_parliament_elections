@@ -17,6 +17,8 @@ logging.getLogger().setLevel('INFO')
 app = Flask(__name__)
 app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa6'
 
+server = app.server
+
 @app.route('/')
 def form():
     app = dash.Dash()
@@ -53,12 +55,13 @@ def show():
     return render_template('index.html', plot=graphJSON)
 
 if __name__ == '__main__':
-	print("alive")
-	logging.info("alive")
+    print("alive")
+    app.run(debug=True)
+    logging.info("alive")
     data = pd.read_csv('res/data.csv')
     pca = PCA(2)
     data_2d = pca.fit_transform(data.T)
     fig = show_parties(data_2d, data)
     logging.info(data_2d.shape)
     logging.info(pca.components_.shape)
-    app.run(host='0.0.0.0')
+    #app.run(host='0.0.0.0')

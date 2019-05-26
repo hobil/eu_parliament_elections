@@ -1,56 +1,123 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Party Overview</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../static/style.css" type="text/css">
-    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" media="screen">
-    <style>
-      .container {
-        max-width: 2000px;
-      }
-    </style>
-  </head>
-  <body>
-    {% block content %}
-    <div class="container" margin:0 auto;>
-      {% for message in get_flashed_messages() %}
-      <div class="alert alert-warning">
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-        {{ message }}
-      </div>
-      {% endfor %}
-      <span>
-      <div class="row">
-              <div class="chart" id="scatter">
-                  <script>
-                      var graphs = {{plot | safe}};
-                      Plotly.plot('scatter',graphs,{});
-                  </script>
-              </div>
-      </div>
-    </span>
-    <span>
-      <div class="row" display:inline-block;>
-        <h3>Paste source of the webpage containing your Wahl-O-Mat results.</h3>
-        <span>
-        <form method="post" action="{{ url_for('show') }}">
-          <label for="view_source"></label>
-          <br/>
-          <textarea placeholder="Paste html source code." name="view_source" cols="80" rows="3" id ="view_source">{{ text }}</textarea/>
-          <br/>
-          <button type="submit" class="btn btn-default">Submit</button>
-        </form>
-      </span>
-      </div>
-    </span>
+
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
+  <title>Party Overview</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../static/style.css" type="text/css">
+  <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" media="screen">
+  <!--<link rel="shortcut icon" href="favicon.ico" />-->
+</head>
+
+<body>
+
+    <div class="tab">
+        <button id="Questions_button" class="tablinks{% if selected_tab == 'Questions' %} active{% endif %}" onclick="opentab('Questions')">Questions</button>
+        <button id="Results_button" class="tablinks{% if selected_tab == 'Results' %} active{% endif %}" onclick="opentab('Results')">Results</button>
+        <button id="Question Overview_button" class="tablinks" onclick="opentab('Question Overview')">Question Overview</button>
+        <button id="Party Overview_button" class="tablinks" onclick="opentab('Party Overview')">Party Overview</button>
+        <button id="About_button" class="tablinks" onclick="opentab('About')">About</button>
     </div>
-    {% endblock %}
-    <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
-    <script src="{{ url_for('static', filename='js/jquery-1.11.1.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/plots.js') }}"></script>
-  </body>
+
+  <div class="container" margin:0 auto;>
+
+    <div id="Questions" class="tabcontent" {% if selected_tab == "Questions" %}style="display:block"{% endif %}>
+        <h3><i>Answer the following questions to find parties that best represent your attitude.</i></h3>
+        <br />
+        <!--<form action="evaluate" METHOD=Post>-->
+          <table>
+            {% for question in questions %}
+            <tr>
+              <td>{{ question }}</td>
+              <td>
+                <div class="cc-selector">
+                  <input id="pro{{loop.index}}" type="radio" name="answer{{loop.index}}" value="1" />
+                  <label class="answer-cc pro" for="pro{{loop.index}}"></label>
+    
+                  <input id="neutral{{loop.index}}" type="radio" name="answer{{loop.index}}" value="0" />
+                  <label class="answer-cc neutral" for="neutral{{loop.index}}"></label>
+    
+                  <input id="contra{{loop.index}}" type="radio" name="answer{{loop.index}}" value="-1" />
+                  <label class="answer-cc contra" for="contra{{loop.index}}"></label>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+        <!--
+          <div style="text-align:center">
+            <input class="button" type=submit value="Compare answers with parties" />
+          </div>
+        </form>-->
+        <button type="button" class="button" onclick="submit()">Compare answers with parties</button>
+    </div>
+
+    <div id="Results" class="tabcontent" {% if selected_tab == "Results" %}style="display:block"{% endif %}>
+        <span>
+          <div class="row">
+            {% if plot_results is not none %}
+            <div class="chart" id="results_scatter">
+              <script>
+                Plotly.plot('results_scatter', {{ plot_results | safe}}, {});
+              </script>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                You need to answer the questions in the first tab to get a comparison with all the political parties.
+            </div>
+            {% endif %}
+          </div>
+        </span>
+    </div>
+
+    <div id="Question Overview" class="tabcontent">
+        <span>
+          <div class="row">
+            <div class="chart" id="question_overview_scatter">
+              <script>
+                Plotly.plot('question_overview_scatter', {{ plot_question_overview | safe }}, {});
+              </script>
+            </div>
+          </div>
+        </span>
+    </div>
+
+    <div id="Party Overview" class="tabcontent">
+        <span>
+          <div class="row">
+            <div class="chart" id="party_overview_scatter">
+              <script>
+                Plotly.plot('party_overview_scatter', {{ plot_party_overview | safe }}, {});
+              </script>
+            </div>
+          </div>
+        </span>
+    </div>
+
+    <div id="About" class="tabcontent">
+      <p>
+          The goal of this project is to visually compare parties and their stance towards important topics. The user can answer these topics themselves to see with which parties they overlap the most. The theses and answers of all parties were provided by <a href="https://www.wahl-o-mat.de">Wahl-O-Mat</a>.
+      </p>
+      <p>
+          The coordinates of parties and questions were computed purely based on the answers of parties. This means that parties which answered similarly are located close to each other.
+      </p>
+      <p>
+          Moreover, we can see a topic similarity among theses. When two theses are displayed close to each other, parties often answered with same response for both of them.
+      </p>
+      <p>
+          In case you have some remarks or further questions, do not hesitate to send me an <a href="mailto:honzabil@gmail.com">email</a>.
+      </p>
+    </div>
+
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js" type="text/javascript"></script>
+  <script src="../static/script.js" type="text/javascript"></script>
+  <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+</body>
 </html>

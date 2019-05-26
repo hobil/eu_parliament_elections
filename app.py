@@ -1,61 +1,55 @@
-from flask import Flask, render_template, request, flash, redirect, url_for
-import numpy as np
+from flask import Flask, render_template, request, redirect, url_for, session
 import pandas as pd
 from sklearn.decomposition import PCA
 import json
-
-import plotly as py
-import plotly.graph_objs as go
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
-
-from utils import show_your_position, show_parties
+from utils import create_plot, create_question_fig, create_party_fig
 import logging
 logging.getLogger().setLevel('INFO')
 
 app = Flask(__name__)
 app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa7'
 
+SESSIONTYPE = 'redis'
+
 data = pd.read_csv('res/data.csv')
 pca = PCA(2)
 data_2d = pca.fit_transform(data.T)
-fig = show_parties(data_2d, data)
-logging.info(data_2d.shape)
-logging.info(pca.components_.shape)
+questions = json.load(open('res/questions.json'))
+reasons = pd.read_csv('res/reason.csv')
+fig_parties = json.dumps(create_party_fig(data, pca, questions).to_dict())
+fig_questions = json.dumps(create_question_fig(data, data_2d, questions, reasons).to_dict())
+
+N_QUESTIONS = 38
+
 
 @app.route('/')
 def form():
-    app = dash.Dash()
-    app.layout = html.Div(children=[
-        html.H1('Party Overview'),
-        dcc.Graph(
-            id='party overview',
-            figure=fig
-        )]
+
+    if 'answers' in session:
+        fig_result = json.dumps(create_plot(data, data_2d, pca, session['answers']).to_dict())
+    else:
+        fig_result = None
+    
+    return render_template(
+        'index.html',
+        questions=questions['full'],
+        plot_party_overview=fig_parties,
+        plot_question_overview=fig_questions,
+        plot_results=fig_result,
+        selected_tab="Results" if fig_result else "Questions"
     )
-    print("Rendering")
-    graphJSON = json.dumps(fig, cls=py.utils.PlotlyJSONEncoder)
-    return render_template('index.html', plot=graphJSON)    
 
-@app.route('/show', methods=['POST'])
-def show():
-    text = request.form['view_source']
-    try:
-        my_trace = show_your_position(pca, data_2d, data, content=text)
-    except Exception as e:
-        logging.exception(e)
-        alert_message = "Sorry, we were not able to parse your data."
-        flash(alert_message)
-        return redirect(url_for('form'))
 
-    fig.add_traces([my_trace])
+@app.route('/evaluate', methods=['POST'])
+def evaluate():
+    logging.debug(request.data)
+    answers = request.get_json()
+    answers = [int(val) if val is not None else 0 for val in answers]
+    logging.info(answers)
+    session['answers'] = answers
+    return redirect(url_for('form'))
 
-    graphJSON = json.dumps(fig, cls=py.utils.PlotlyJSONEncoder)
-
-    return render_template('index.html', plot=graphJSON)
 
 if __name__ == '__main__':
-    print("alive")
-    logging.info("alive")
     app.run(host='0.0.0.0')

@@ -1,194 +1,296 @@
 import numpy as np
-from bs4 import BeautifulSoup
 import plotly.graph_objs as go
-import pickle
-import requests
+import json
 import logging
+import jinja2
+import textwrap
 
-questions = pickle.load(open('res/questions.pkl','rb'))
+N_QUESTIONS = 38
 
-pro_contra_dict = {
-    "media/pix/icon/votum_pro.png" : 1,
-    "media/pix/icon/votum_con.png" : -1,
-    "media/pix/icon/votum_neutral.png" : 0,
-}
-
+# for printing purposes
 response2text = {
-    1 : 'pro',
+    1: 'pro',
     0: 'neutral',
     -1: 'contra'
 }
 
-N_QUESTIONS = 38
+# colors representing NEUTRAL, PRO and CONTRA color
+colors = np.array([
+    'lightgray',
+    '#2ca02c', # cooked asparagus green
+    '#d62728', # brick red
+])
 
-def has_double_weight(text):
-    return 'Diese These wurde doppelt gewichtet' in text
+# convenience list for `positions` and `question_positions`
+# which describe positions using indices of this array 
+positions_list = np.array([None,
+                           'bottom left', 'bottom center', 'bottom right',
+                           'middle left','middle center', 'middle right',
+                           'top left', 'top center', 'top right'])
 
-def get_weighted_answers(file_name, URL, content):
-    if content:
-        soup = BeautifulSoup(content, 'html.parser')
-    elif URL:
-        soup = BeautifulSoup(requests.get(URL).content, 'html.parser')
-    else:
-        soup = BeautifulSoup(open(file_name).read(), 'html.parser')
+# positions of captions for each party on the party and result plot
+# each number corresponds to the position as defined in `positions_list`
+positions = [6, 4, 9, 7, 9, 4, 3, 4, 2, 3, 9, 9, 6, 9, 9, 3, 2, 6, 1, 9, 9, 9, 3, 3, 2, 3, 9, 3,
+             6, 3, 1, 3, 9, 6, 7, 1, 9, 9, 9, 9]
 
-    ul_answer_weighting = soup.find("ul", class_='wom_thesen_points')
+# positions of captions for each question on the question plot
+# each number corresponds to the position as defined in `positions_list`
+question_positions = [2, 7, 9, 9, 3, 7, 9, 2, 3, 9, 4, 7, 3, 9, 9, 8, 1, 9, 4,
+                     9, 3, 3, 7, 1, 3, 9, 9, 1, 3, 9, 6, 4, 9, 6, 3, 3, 9, 9]
 
-    if ul_answer_weighting is None:
-        logging.error(soup)
-        raise ValueError('ul_answer_weighting is None')
 
-    lis_answer_weighting = ul_answer_weighting.find_all('li')
+# custom colormap based on Red-Yellow-Green
+rdylgn_rgb = json.load('res/rdylgn_rgb.json')
 
-    if not isinstance(lis_answer_weighting, list):
-        logging.error(soup)
-        logging.error(lis_answer_weighting)
-        raise ValueError(f'lis_answer_weighting is not a list but {type(lis_answer_weighting)}')
 
-    if len(lis_answer_weighting) != N_QUESTIONS:
-        logging.error(soup)
-        logging.error(lis_answer_weighting)
-        raise ValueError(f'lis_answer_weighting has length {len(lis_answer_weighting)} ({N_QUESTIONS} expected)')
+def create_plot(data, data_2d, pca, answers, show_top_n_anwers=3):
+    """Return plotly figure with all the parties and own position based on answers."""
 
-    weights = 1 + np.array([has_double_weight(li.find("span", class_="thesenavi_tooltip").text)
-                  for li in lis_answer_weighting])
-    ul_answers = soup.find("div", class_='wom_antworten_box').ul
-
-    if ul_answers is None:
-        logging.error(soup)
-        raise ValueError('ul_answers is None')
-
-    li_answers = ul_answers.find_all('li')
-
-    if not isinstance(li_answers, list):
-        logging.error(soup)
-        logging.error(li_answers)
-        raise ValueError(f'li_answers is not a list but {type(lis_answer_weighting)}')
-
-    if len(li_answers) != N_QUESTIONS:
-        logging.error(soup)
-        logging.error(li_answers)
-        raise ValueError(f'li_answers has length {len(li_answers)} ({N_QUESTIONS} expected)')
+    answers = np.array(answers)
+    answers_2d = pca.transform(np.atleast_2d(answers))
+    # for each party compute absolute difference
+    results = data.T.sub(answers).abs().sum(axis=1)
+    max_difference = N_QUESTIONS * 2
+    results_relative = (np.clip(1 - results / max_difference, a_min=0, a_max=1) * 100).round()
     
-    my_answers = [pro_contra_dict[li.p.img['src']] for li in li_answers]
-    return weights * np.array(my_answers)
+    my_trace_hover = zip()
 
-def prepare_caption(data, coeffs, questions, partei, top_n=3):
-    def find_fingerprint_questions(partei, top_n=3):
-        return coeffs[partei].sort_values()[:top_n]
-
-    top_questions = find_fingerprint_questions(partei, top_n)
-    result = f'<b>{partei}</b><br />'
-    for question_id, val in top_questions.items():
-        question_full = questions['full'][question_id]
-        question_answer_counts = data.loc[question_id].value_counts()
-        partei_answer_int = data.loc[question_id, partei]
-        partei_answer = response2text[partei_answer_int]
-        result += f'{question_full}'
-        result += f' ({partei_answer},'
-        if partei_answer_int == 1:
-            result += '<b>'
-        result += f' {question_answer_counts.loc[1]}'
-        if partei_answer_int == 1:
-            result += '</b>'
-        result += '/'
-        if partei_answer_int == -1:
-            result += '<b>'
-        result += f'{question_answer_counts.loc[-1]}'
-        if partei_answer_int == -1:
-            result += '</b>'
-        result += '/' 
-        if partei_answer_int == 0:
-            result += '<b>'
-        result += f'{question_answer_counts.loc[0]}'
-        if partei_answer_int == 0:
-            result += '</b>'
-        result += ')<br />'
-    return result
-
-def create_partei_trace(data_2d, data, coeffs):
     trace = go.Scatter(
-        x=data_2d[:,0],
-        y=data_2d[:,1],
-        hovertext=[prepare_caption(data, coeffs, questions, partei) for partei in data.columns],
+        x=list(data_2d[:,0]),
+        y=list(data_2d[:,1]),
+        hovertext = [f'<b>{int(val)} %</b>' for val in results_relative],
         mode='markers+text',
         hoverinfo='text',
-        marker = {'size':9},
-        text=data.columns,
-        textposition='middle right',
-        hoverlabel = {'align':'left', 'bgcolor':'lightgray'}
+        marker=dict(
+            size=10,
+            cmax=100,
+            cmin=0,
+            color=list(results_relative),
+            colorscale=rdylgn_rgb
+        ),
+        
+        text=list(data.columns),
+        textposition=list(positions_list[positions]),
+        hoverlabel = {'align':'left', 'bgcolor':'lightgray', 'font':{'family':'Courier New, monospace'}}
     )
 
     layout = go.Layout(
         autosize=True,
+        width=900,
+        height=900,
+        hovermode='closest',
+        hoverlabel={'font':{'size':16}},
+        showlegend=False,
+        xaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            showticklabels=False
+        ),
+        yaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            scaleanchor="x",
+            scaleratio=1,
+            showticklabels=False
+        )
+    )
+    
+    top_n = results_relative.sort_values(ascending=False)[:show_top_n_anwers]
+    my_trace_hover = """\
+Parties closest to your answers:<br />\
+{% for party_name, val in top_n.items() %}{{ party_name.ljust(longest_party_name) }} : <b>{{ val }} %</b> <br />\
+{% endfor %}\
+"""
+
+    my_trace = go.Scatter(
+        x=list(answers_2d[:,0]),
+        y=list(answers_2d[:,1]),
+        hovertext=jinja2.Template(my_trace_hover).render(
+            top_n=top_n.astype(int),
+            longest_party_name=max([len(x) for x in top_n.index])
+        ),
+        mode='markers+text',
+        hoverinfo='text',
+        marker = {'color':'#d62728', 'size':14, 'symbol':'x'},
+        text='<b>YOU</b>',
+        textposition='middle right',
+        hoverlabel = {'align':'left', 'bgcolor':'lightgray', 'font':{'family':'Courier New, monospace', 'size':14}}
+    )
+
+    fig = go.Figure(data=[trace, my_trace], layout=layout)
+    return fig
+
+
+def create_question_fig(data, data_2d, questions, reasons):
+    """Return plotly figure with a question slider with detailed answers of all parties."""
+
+    def create_trace_question(question_id):
+        if question_id is not None:
+            marker_colors = list(colors[data.loc[question_id]])
+        else:
+            marker_colors = None
+        return go.Scatter(
+            x=list(data_2d[:,0]),
+            y=list(data_2d[:,1]),
+            hovertext=[f'<b>{partei} : {response2text[data.loc[question_id][partei]]}</b><br>' + \
+                    '<br />'.join(textwrap.wrap(reasons.loc[question_id][partei]))
+                    for partei in reasons.columns],
+            mode='markers+text',
+            hoverinfo='text',
+            marker={'color':marker_colors, 'size':10},
+            text=list(data.columns),
+            textposition=list(positions_list[positions]),
+            hoverlabel={'align':'left'},
+            visible=False
+    )
+
+    traces = [create_trace_question(question_id) for question_id in data.index]
+    traces[0]['visible'] = True
+
+    steps=[]
+    for i in range(len(traces)):
+        step = dict(
+            method = 'update',  
+            args = [
+                {'visible': [t == i for t in range(len(traces))]},
+                {'title.text': '<b>Thesis</b><i>:<br />"{}"</i>'.format("<br />".join(textwrap.wrap(questions["full"][i], width=60)))}],
+            label=questions['short'][i]
+        )
+        steps.append(step)
+
+    layout = go.Layout(
+        autosize=True,
         width=800,
-        height=660,
+        height=800,
+        font={'size':13},
         hovermode='closest',
         title=go.layout.Title(
-            text="Party overview",
+            text='<b>Thesis</b><i>:<br />"{}"</i>'.format("<br />".join(textwrap.wrap(questions["full"][i], width=60))),
             xref='paper',
             x=0.5,
             xanchor='center',
-            font=dict(size=16, color='black'),
-    ),
-    showlegend=False,
-    xaxis=dict(
-        tickmode='linear',
-        ticks='outside',
-        dtick=1,
-        ticklen=0,
-        tickwidth=0,
-        zeroline=False,
-        showticklabels=False
-    ),
-    yaxis=dict(
-        tickmode='linear',
-        ticks='outside',
-        dtick=1,
-        ticklen=0,
-        tickwidth=0,
-        zeroline=False,
-        scaleanchor="x",
-        scaleratio=1,
-        showticklabels=False
-    ))
-    return trace, layout
+            font=dict(size=18, color='black'),
+        ),
+        sliders= [dict(
+            active = 0,
+            pad = {"t": 20},
+            steps = steps)
+        ],
+        xaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            showticklabels=False
+        ),
+        yaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            scaleanchor="x",
+            scaleratio=1,
+            showticklabels=False
+        ))
 
-def show_parties(data_2d, data):
-    coeffs = data / data.sum(axis=1)[:, np.newaxis]
-    coeffs.where(coeffs == 0, 1/coeffs, inplace=True)
-
-    trace, layout = create_partei_trace(data_2d, data, coeffs)
-
-    fig = go.Figure(data=[trace], layout=layout)
+    fig = go.Figure(data=traces, layout=layout)
     return fig
 
-def show_your_position(pca, data_2d, data, file_name=None, URL=None, content=None):
-    # raises ValueError when parsing of the html source file unsuccessful
-    weighted_answers = get_weighted_answers(file_name, URL, content)    
-    weighted_answers_2d = pca.transform(np.atleast_2d(weighted_answers))
+def create_party_fig(data, pca, questions):
+    """Return plotly figure with a party slider and visualisation of questions."""
 
-    data_incl_YOU = data.copy()
-    data_incl_YOU['YOU'] = weighted_answers
+    def prepare_caption_partei(question_id, top_n=3):
+        question_answer_counts = data.loc[question_id].value_counts()
+        result = f'<b>{questions["full"][question_id]}</b><br />'
+        result+= f'pro       : {question_answer_counts.loc[1]}<br />'
+        result+= f'contra  : {question_answer_counts.loc[-1]}<br />'
+        result+= f'neutral : {question_answer_counts.loc[0]}<br />'
+        return result
 
-    coeffs = data_incl_YOU / data.sum(axis=1)[:, np.newaxis]
-    coeffs.where(coeffs == 0, 1/coeffs, inplace=True)
-
-    trace, layout = create_partei_trace(data_2d, data, coeffs)
-
-
-    my_trace = go.Scatter(
-            x=weighted_answers_2d[:,0],
-            y=weighted_answers_2d[:,1],
-            hovertext=prepare_caption(data_incl_YOU, coeffs, questions, 'YOU'),
+    def create_trace_partei(partei):
+        if partei is not None:
+            marker_colors = list(colors[data[partei]])
+        else:
+            marker_colors = None
+        return go.Scatter(
+            x=list(pca.components_[0]),
+            y=list(pca.components_[1]),
+            hovertext=[prepare_caption_partei(question_id) for question_id in data.index],
             mode='markers+text',
             hoverinfo='text',
-            marker = {'color':'red', 'size':15, 'symbol':'x'},
-            text='YOU',
-            textposition='middle right',
-            hoverlabel = {'align':'left', 'bgcolor':'lightgray'}
+            marker = {'color':marker_colors, 'size':10},
+            text=list(questions['short']),
+            textposition=list(positions_list[question_positions]),
+            hoverlabel = {'align':'left'},
+            visible=False
         )
+    
+    traces = [create_trace_partei(partei) for partei in data.columns]
+    traces[0]['visible'] = True
 
-    #fig = go.Figure(data=[trace, my_trace], layout=layout)
-    #return fig, weighted_answers, weighted_answers_2d
-    return my_trace
+    steps=[]
+    for i in range(len(traces)):
+        step = dict(
+            method = 'update',  
+            args = [
+                {'visible': [t == i for t in range(len(traces))]},
+                {'title.text': f'<b>Party:</b><br /><i>{data.columns[i]}</i>'}],
+            label=data.columns[i]
+        )
+        steps.append(step)
+
+    layout = go.Layout(
+        autosize=True,
+        width=960,
+        height=800,
+        hovermode='closest',
+        hoverlabel=dict(bgcolor='lightgray'),
+        title=go.layout.Title(
+            text=f'<b>Party:</b><br /><i>{data.columns[0]}</i>',
+            xref='paper',
+            x=0.5,
+            xanchor='center',
+            font=dict(size=20, color='black'),
+        ),
+        sliders= [dict(
+            active = 0,
+            pad = {"t": 50},
+            steps = steps,
+    )],
+        font=dict(size=10),
+        xaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=0.1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            showticklabels=False
+        ),
+        yaxis=dict(
+            tickmode='linear',
+            ticks='outside',
+            dtick=0.1,
+            ticklen=0,
+            tickwidth=0,
+            zeroline=False,
+            scaleanchor="x",
+            scaleratio=1,
+            showticklabels=False
+        )
+    )
+
+    fig = go.Figure(data=traces, layout=layout)
+    return fig

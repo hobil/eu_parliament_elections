@@ -40,7 +40,7 @@ question_positions = [2, 7, 9, 9, 3, 7, 9, 2, 3, 9, 4, 7, 3, 9, 9, 8, 1, 9, 4,
 
 
 # custom colormap based on Red-Yellow-Green
-rdylgn_rgb = json.load('res/rdylgn_rgb.json')
+rdylgn_rgb = json.load(open('res/rdylgn_custom_cm.json'))
 
 
 def create_plot(data, data_2d, pca, answers, show_top_n_anwers=3):

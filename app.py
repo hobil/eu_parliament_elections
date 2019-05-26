@@ -10,8 +10,6 @@ logging.getLogger().setLevel('INFO')
 app = Flask(__name__)
 app.secret_key = 'dljsaklqk24e21cjn!Ew@@dsa7'
 
-SESSIONTYPE = 'redis'
-
 data = pd.read_csv('res/data.csv')
 pca = PCA(2)
 data_2d = pca.fit_transform(data.T)

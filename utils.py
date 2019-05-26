@@ -214,7 +214,7 @@ def create_party_fig(data, pca, questions):
     def prepare_caption_partei(question_id, top_n=3):
         question_answer_counts = data.loc[question_id].value_counts()
         result = f'<b>{questions["full"][question_id]}</b><br />'
-        result+= f'pro       : {question_answer_counts.loc[1]}<br />'
+        result+= f'pro     : {question_answer_counts.loc[1]}<br />'
         result+= f'contra  : {question_answer_counts.loc[-1]}<br />'
         result+= f'neutral : {question_answer_counts.loc[0]}<br />'
         return result
